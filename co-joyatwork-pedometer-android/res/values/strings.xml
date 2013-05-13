@@ -1,5 +1,9 @@
 <resources>
 
     <string name="app_name">co-joyatwork-pedometer-android</string>
-
+    <string name="acc_update_action">co.joyatwork.pedometer.android.ACC_UPDATE</string>
+    <string name="acc_x_value">co.joyatwork.pedometer.android.ACC_X_VALUE</string>
+    <string name="acc_y_value">co.joyatwork.pedometer.android.ACC_Y_VALUE</string>
+    <string name="acc_z_value">co.joyatwork.pedometer.android.ACC_Z_VALUE</string>
+    
 </resources>
