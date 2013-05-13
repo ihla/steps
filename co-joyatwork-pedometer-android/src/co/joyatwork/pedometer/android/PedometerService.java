@@ -1,5 +1,6 @@
 package co.joyatwork.pedometer.android;
 
+import co.joyatwork.pedometer.StepCounter;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -21,33 +22,26 @@ import android.widget.Toast;
 
 public class PedometerService extends Service {
 	
+	private static final String TAG = "PedometerService";
+	private boolean isRunning = false;
+	private Thread helperThread;
+	private SensorManager sensorManager;
+	private Sensor sensor;
+	private StepCounter stepCounter = null;
+
 	private final class AccelerometerListener implements SensorEventListener {
+
 		private static final long NANO_TO_MILISECONDS = 1000000;
-		private long lastUpdateTime = 0;
-		private long startTime = SystemClock.uptimeMillis();
 
 		@Override
 		public void onSensorChanged(SensorEvent event) {
+			//TODO check if correct sensor is calling
 			
-			long currentSampleTime = event.timestamp / NANO_TO_MILISECONDS - startTime;
-			
-			if (updateTimeElapsed(currentSampleTime)) {
-				Log.d(TAG, "onSensorChanged called on " + Thread.currentThread().getName()
-					+ " " + currentSampleTime + " ms");
-				
-				broadcastUpdate(event.values.clone());
-				
-			}
-			
-		}
+			long currentSampleTime = event.timestamp / NANO_TO_MILISECONDS;
 
-		private boolean updateTimeElapsed(long currentSampleTime) {
-			long deltaTime = currentSampleTime - lastUpdateTime;
-			if (deltaTime >= 200) {
-				lastUpdateTime = currentSampleTime;
-				return true;
-			}
-			return false;
+			stepCounter.countSteps(event.values.clone(), currentSampleTime);
+			broadcastStepCountUpdate(stepCounter.getStepCount());
+			
 		}
 
 		@Override
@@ -57,18 +51,17 @@ public class PedometerService extends Service {
 		}
 	}
 
-	private static final String TAG = "HelperService";
-	private boolean isRunning = false;
-	private Thread helperThread;
-	protected SensorManager sensorManager;
-	protected Sensor sensor;
-	protected AccelerometerListener listener;
+	private AccelerometerListener listener;
 
 	@Override
 	public void onCreate() {
 		super.onCreate();
 		
 		Log.d(TAG, "onCreate");
+		
+		if (stepCounter == null) {
+			stepCounter = new StepCounter();
+		}
 		
 		/*
 		NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this)
@@ -145,8 +138,10 @@ public class PedometerService extends Service {
 
 		Toast.makeText(this, "service stoping", Toast.LENGTH_LONG).show();
 
+		/*
 		NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 		notificationManager.cancelAll();
+		*/
 		
 		if (isRunning) {
 			isRunning = false;
@@ -175,13 +170,11 @@ public class PedometerService extends Service {
 		return null;
 	}
 
-	protected void broadcastUpdate(float[] values) {
+	protected void broadcastStepCountUpdate(int stepCount) {
 
 		LocalBroadcastManager lbm = LocalBroadcastManager.getInstance(this);
-		Intent intent = new Intent(getResources().getString(R.string.acc_update_action))
-			.putExtra(getResources().getString(R.string.acc_x_value), "" + values[0])
-			.putExtra(getResources().getString(R.string.acc_y_value), "" + values[1])
-			.putExtra(getResources().getString(R.string.acc_z_value), "" + values[2])
+		Intent intent = new Intent(getResources().getString(R.string.step_count_update_action))
+			.putExtra(getResources().getString(R.string.step_count), "" + stepCount)
 			;
 		lbm.sendBroadcast(intent);
 			
