@@ -13,12 +13,14 @@ public class StepCounter {
 
 	private int[] lastStepCount = new int[3];
 	private int stepCounter;
+	private int detectedAxis; // holds accelerometer axis from which the last step count was updated  
 	
 	public StepCounter() {
 		for (int i = 0; i < 3; i++) {
 			lastStepCount[i] = 0;
 		}
 		stepCounter = 0;
+		detectedAxis = -1;
 	}
 	
 	public void countSteps(float[] accelerationSamples, long sampleTimeInMilis) {
@@ -43,6 +45,11 @@ public class StepCounter {
 				for (int i = 0; i < 3; i++) {
 					lastStepCount[i] = stepDetector[i].getStepCount();
 				}
+				
+				detectedAxis = maxPeakAxis;
+			}
+			else {
+				detectedAxis = -1;
 			}
 		} 
 
@@ -59,6 +66,21 @@ public class StepCounter {
 	}
 	
 	//for testing
+	public String getDetectedAxis() {
+		if (detectedAxis == 0) {
+			return "X";
+		}
+		else if (detectedAxis == 1) {
+			return "Y";
+		} 
+		else if (detectedAxis == 2) {
+			return "Z";
+		}
+		else {
+			return "unknown";
+		}
+	}
+	
 	public int getCrossingThresholdCount(int axis) {
 		return stepDetector[axis].getCrossingThresholdCount();
 	}
