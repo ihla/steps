@@ -3,5 +3,6 @@
     <string name="app_name">co-joyatwork-pedometer-android</string>
     <string name="step_count_update_action">co.joyatwork.pedometer.android.STEP_COUNT_UPDATE_ACTION</string>
     <string name="step_count">co.joyatwork.pedometer.android.STEP_COUNT</string>
+    <string name="step_axis">co.joyatwork.pedometer.android.STEP_AXIS</string>
     
 </resources>

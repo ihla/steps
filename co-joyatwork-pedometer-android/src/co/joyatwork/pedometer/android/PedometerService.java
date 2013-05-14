@@ -1,11 +1,13 @@
 package co.joyatwork.pedometer.android;
 
 import co.joyatwork.pedometer.StepCounter;
+import android.annotation.SuppressLint;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -18,6 +20,7 @@ import android.support.v4.app.NotificationCompat;
 import android.support.v4.app.TaskStackBuilder;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
+import android.widget.TextView;
 import android.widget.Toast;
 
 public class PedometerService extends Service {
@@ -28,6 +31,8 @@ public class PedometerService extends Service {
 	private SensorManager sensorManager;
 	private Sensor sensor;
 	private StepCounter stepCounter = null;
+	private int lastStepCount = 0;
+	private boolean debugging = true; //TODO get value from preferences
 
 	private final class AccelerometerListener implements SensorEventListener {
 
@@ -36,12 +41,14 @@ public class PedometerService extends Service {
 		@Override
 		public void onSensorChanged(SensorEvent event) {
 			//TODO check if correct sensor is calling
-			
+
 			long currentSampleTime = event.timestamp / NANO_TO_MILISECONDS;
 
 			stepCounter.countSteps(event.values.clone(), currentSampleTime);
 			broadcastStepCountUpdate(stepCounter.getStepCount());
-			
+
+			//Log.d(TAG, "onSensorChanged called on " + Thread.currentThread().getName() + " " + currentSampleTime + " ms");
+
 		}
 
 		@Override
@@ -60,29 +67,10 @@ public class PedometerService extends Service {
 		Log.d(TAG, "onCreate");
 		
 		if (stepCounter == null) {
+			Log.d(TAG, "creating new StepCounter instance" );
 			stepCounter = new StepCounter();
 		}
 		
-		/*
-		NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this)
-		.setSmallIcon(R.drawable.notification_icon)
-		.setContentTitle("Handler Service")
-		.setContentText("press to launch");
-	
-		Intent launcActivity = new Intent(this, MainActivity.class);
-		
-		TaskStackBuilder backStackBuilder = TaskStackBuilder.create(this);
-		backStackBuilder.addParentStack(MainActivity.class);
-		backStackBuilder.addNextIntent(launcActivity);
-		PendingIntent launchPendingActivity = backStackBuilder.getPendingIntent(0,
-				PendingIntent.FLAG_UPDATE_CURRENT);
-		
-		notificationBuilder.setContentIntent(launchPendingActivity);
-		
-		NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-		notificationManager.notify(0, notificationBuilder.build());
-		*/
-
 	}
 
 	@Override
@@ -106,7 +94,8 @@ public class PedometerService extends Service {
 				@Override
 				public void run() {
 					
-					Log.d(TAG, "starting helper thread");
+					//TODO try-catch for InterruptException ???
+					Log.d(TAG, "runing looper in helper thread");
 					
 					Looper.prepare();
 
@@ -124,7 +113,6 @@ public class PedometerService extends Service {
 			}, "HelperThread");
 			helperThread.start();
 			
-			
 		}
 
 		return START_STICKY;
@@ -138,14 +126,9 @@ public class PedometerService extends Service {
 
 		Toast.makeText(this, "service stoping", Toast.LENGTH_LONG).show();
 
-		/*
-		NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-		notificationManager.cancelAll();
-		*/
-		
 		if (isRunning) {
 			isRunning = false;
-			helperThread.interrupt();
+			helperThread.interrupt(); //TODO should raise exception?
 			sensorManager.unregisterListener(listener);
 			//..
 		}
@@ -154,31 +137,67 @@ public class PedometerService extends Service {
 
 	@Override
 	public void onRebind(Intent intent) {
-		// TODO Auto-generated method stub
+		Log.d(TAG, "onRebind()");
 		super.onRebind(intent);
 	}
 
 	@Override
 	public boolean onUnbind(Intent intent) {
-		// TODO Auto-generated method stub
+		Log.d(TAG, "onUnbind()");
 		return super.onUnbind(intent);
 	}
 
 	@Override
 	public IBinder onBind(Intent arg0) {
-		// TODO Auto-generated method stub
+		Log.d(TAG, "onBind()");
 		return null;
 	}
 
-	protected void broadcastStepCountUpdate(int stepCount) {
+	@Override
+	public void onConfigurationChanged(Configuration newConfig) {
+		Log.d(TAG, "onConfigurationChanged()");
+		super.onConfigurationChanged(newConfig);
+	}
+
+	@Override
+	public void onLowMemory() {
+		Log.d(TAG, "onLowMemory()");
+		super.onLowMemory();
+	}
+
+	@SuppressLint("NewApi")
+	@Override
+	public void onTaskRemoved(Intent rootIntent) {
+		Log.d(TAG, "onTaskRemoved()");
+		super.onTaskRemoved(rootIntent);
+	}
+
+	@SuppressLint("NewApi")
+	@Override
+	public void onTrimMemory(int level) {
+		Log.d(TAG, "onTrimMemory() level: " + level);
+		super.onTrimMemory(level);
+	}
+
+
+	private void broadcastStepCountUpdate(int stepCount) {
+		
+		if (stepCount == lastStepCount) {
+			return;
+		}
+		lastStepCount = stepCount;
 
 		LocalBroadcastManager lbm = LocalBroadcastManager.getInstance(this);
 		Intent intent = new Intent(getResources().getString(R.string.step_count_update_action))
-			.putExtra(getResources().getString(R.string.step_count), "" + stepCount)
+			.putExtra(getResources().getString(R.string.step_count), "" + stepCount) //TODO optimize string formating
 			;
+		
+		if (debugging) {
+			intent.putExtra(getResources().getString(R.string.step_axis), stepCounter.getDetectedAxis());
+		}
+		
 		lbm.sendBroadcast(intent);
 			
 	}
-
 
 }
