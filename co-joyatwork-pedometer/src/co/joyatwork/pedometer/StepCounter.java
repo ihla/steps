@@ -2,6 +2,12 @@ package co.joyatwork.pedometer;
 
 public class StepCounter {
 	
+	public interface StepCounterListener {
+
+		void onStepsCounted(int deltaStepCount);
+
+	}
+
 	public static final int X_AXIS = 0;
 	public static final int Y_AXIS = 1;
 	public static final int Z_AXIS = 2;
@@ -14,13 +20,18 @@ public class StepCounter {
 	private int[] lastStepCount = new int[3];
 	private int stepCounter;
 	private int detectedAxis; // holds accelerometer axis from which the last step count was updated  
+	private StepCounterListener listener;
 	
-	public StepCounter() {
+	public StepCounter(StepCounterListener listener) {
+		this.listener = listener;
 		for (int i = 0; i < 3; i++) {
 			lastStepCount[i] = 0;
 		}
 		stepCounter = 0;
 		detectedAxis = -1;
+	}
+	public StepCounter() {
+		this(null);
 	}
 	
 	public void countSteps(float[] accelerationSamples, long sampleTimeInMilis) {
@@ -39,7 +50,8 @@ public class StepCounter {
 		
 		if (maxPeakAxis >= 0) {
 			if (stepDetector[maxPeakAxis].hasValidSteps()) {
-				stepCounter += stepDetector[maxPeakAxis].getStepCount() - lastStepCount[maxPeakAxis]; // add delta
+				int deltaStepCount = stepDetector[maxPeakAxis].getStepCount() - lastStepCount[maxPeakAxis];
+				stepCounter += deltaStepCount; // add delta
 				
 				// store counts for next delta calculation
 				for (int i = 0; i < 3; i++) {
@@ -47,6 +59,9 @@ public class StepCounter {
 				}
 				
 				detectedAxis = maxPeakAxis;
+				if (listener != null) {
+					listener.onStepsCounted(deltaStepCount);
+				}
 			}
 			else {
 				detectedAxis = -1;

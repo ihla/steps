@@ -2,10 +2,7 @@ package co.joyatwork.pedometer.android;
 
 import co.joyatwork.pedometer.StepCounter;
 import android.annotation.SuppressLint;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.app.Service;
-import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.hardware.Sensor;
@@ -15,12 +12,8 @@ import android.hardware.SensorManager;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
-import android.os.SystemClock;
-import android.support.v4.app.NotificationCompat;
-import android.support.v4.app.TaskStackBuilder;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
-import android.widget.TextView;
 import android.widget.Toast;
 
 public class PedometerService extends Service {
@@ -36,12 +29,23 @@ public class PedometerService extends Service {
 	//<<
 
 	// the StepCounter object is created on UI thread but used by HelperThread 
-	private StepCounter stepCounter = null;
+	private StepCounter stepCounter;
 	
 	// the following fields are accessed on HelperThread >>
 	private int lastStepCount = 0;
+	private int stepsCount = 0;
 	private boolean debugging = true; //TODO get value from preferences
 
+	private final class StepsListener implements StepCounter.StepCounterListener {
+
+		@Override
+		public void onStepsCounted(int deltaStepCount) {
+			stepsCount += deltaStepCount;
+			Log.d(TAG, "onStepCounted: " + stepsCount);
+		}
+		
+	}
+	
 	private final class AccelerometerListener implements SensorEventListener {
 
 		private static final long NANO_TO_MILISECONDS = 1000000;
@@ -65,19 +69,16 @@ public class PedometerService extends Service {
 			
 		}
 	}
-	private AccelerometerListener listener;
+	private AccelerometerListener accelerometerListener;
 	//<<
 	
 	@Override
 	public void onCreate() {
 		super.onCreate();
 		
-		Log.d(TAG, "onCreate");
+		Log.d(TAG, "onCreate - stepCount: " + stepsCount);
 		
-		if (stepCounter == null) {
-			Log.d(TAG, "creating new StepCounter instance" );
-			stepCounter = new StepCounter();
-		}
+		stepCounter = new StepCounter(new StepsListener());
 		
 	}
 
@@ -102,7 +103,6 @@ public class PedometerService extends Service {
 				@Override
 				public void run() {
 					
-					//TODO try-catch for InterruptException ???
 					Log.d(TAG, "runing looper in helper thread");
 					
 					Looper.prepare();
@@ -111,8 +111,9 @@ public class PedometerService extends Service {
 					sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
 					sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
 					
-					listener = new AccelerometerListener();
-					sensorManager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_GAME, handler);
+					accelerometerListener = new AccelerometerListener();
+					sensorManager.registerListener(accelerometerListener, sensor, 
+							SensorManager.SENSOR_DELAY_GAME, handler);
 					
 					Looper.loop();
 					
@@ -139,7 +140,7 @@ public class PedometerService extends Service {
 			// thread with looper is gracefully killed when service is killed
 			// no need to call interrupt explicitly (anyway not sure if Looper can be interrupted explicitly?)
 			// helperThread.interrupt();
-			sensorManager.unregisterListener(listener);
+			sensorManager.unregisterListener(accelerometerListener);
 			//..
 		}
 
