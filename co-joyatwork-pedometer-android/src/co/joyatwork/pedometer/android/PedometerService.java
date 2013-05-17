@@ -25,12 +25,20 @@ import android.widget.Toast;
 
 public class PedometerService extends Service {
 	
+	// the following fields are accessed from UI thread
 	private static final String TAG = "PedometerService";
 	private boolean isRunning = false;
+	//TODO check if you can start this thread anonymously, if so you can remove private field
 	private Thread helperThread;
+	//TODO could you decrease the footprint of service if you have removed these fields (these are only references)? >>
 	private SensorManager sensorManager;
 	private Sensor sensor;
+	//<<
+
+	// the StepCounter object is created on UI thread but used by HelperThread 
 	private StepCounter stepCounter = null;
+	
+	// the following fields are accessed on HelperThread >>
 	private int lastStepCount = 0;
 	private boolean debugging = true; //TODO get value from preferences
 
@@ -57,9 +65,9 @@ public class PedometerService extends Service {
 			
 		}
 	}
-
 	private AccelerometerListener listener;
-
+	//<<
+	
 	@Override
 	public void onCreate() {
 		super.onCreate();
@@ -128,7 +136,9 @@ public class PedometerService extends Service {
 
 		if (isRunning) {
 			isRunning = false;
-			helperThread.interrupt(); //TODO should raise exception?
+			// thread with looper is gracefully killed when service is killed
+			// no need to call interrupt explicitly (anyway not sure if Looper can be interrupted explicitly?)
+			// helperThread.interrupt();
 			sensorManager.unregisterListener(listener);
 			//..
 		}
@@ -180,6 +190,10 @@ public class PedometerService extends Service {
 	}
 
 
+	/**
+	 * called on HelperThread!!!
+	 * @param stepCount
+	 */
 	private void broadcastStepCountUpdate(int stepCount) {
 		
 		if (stepCount == lastStepCount) {
