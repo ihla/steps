@@ -4,7 +4,6 @@ package co.joyatwork.pedometer;
 //TODO change to package private visibility!
 public class Threshold {
 	
-	private final static String TAG = "Threshold";
 	private final int windowSize;
 
 	// these vars hold min/max values during measurement, 
