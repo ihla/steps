@@ -129,7 +129,6 @@ public class PedometerService extends Service {
 
 	@Override
 	public void onDestroy() {
-		super.onDestroy();
 
 		Log.d(TAG, "onDestroy()");
 
@@ -143,6 +142,7 @@ public class PedometerService extends Service {
 			sensorManager.unregisterListener(accelerometerListener);
 			//..
 		}
+		super.onDestroy();
 
 	}
 
