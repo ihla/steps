@@ -92,7 +92,7 @@ public class StepCounter {
 			return "Z";
 		}
 		else {
-			return "unknown";
+			return "?";
 		}
 	}
 	
