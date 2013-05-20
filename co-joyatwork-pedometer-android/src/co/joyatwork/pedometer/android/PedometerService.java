@@ -16,7 +16,6 @@ import android.hardware.SensorManager;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
-import android.os.SystemClock;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 import android.widget.Toast;
@@ -40,8 +39,6 @@ public class PedometerService extends Service {
 	private SharedPreferences persistentState;
 	private Editor persistentStateEditor; //TODO called on UI Thread in onDestroy()!!! 
 	
-	// the following fields are accessed on HelperThread >>
-	private int lastStepCount = 0;
 	private AtomicInteger stepsCount; // to allow concurrent access from UI and Helper thread
 	
 	private boolean debugging = true; //TODO get value from preferences
@@ -56,7 +53,7 @@ public class PedometerService extends Service {
 			persistentStateEditor.putInt(PERSISTENT_SATE_STEPS_COUNT, stepsCount.get());
 			persistentStateEditor.apply();
 
-			broadcastStepCountUpdate(stepsCount.get());
+			broadcastStepCount(stepsCount.get());
 			
 			Log.d(TAG, "onStepCounted: " + stepsCount.get());
 		}
@@ -146,10 +143,8 @@ public class PedometerService extends Service {
 			
 		}
 
-		if (intent != null) {
-			// Parent Activity recreated, broadcast update 
-			broadcastStepCountUpdate(stepsCount.get());
-		}
+		// Parent Activity recreated, broadcast update 
+		broadcastStepCount(stepsCount.get());
 		
 		return START_STICKY;
 	}
@@ -227,13 +222,8 @@ public class PedometerService extends Service {
 	 * called on HelperThread!!!
 	 * @param stepCount
 	 */
-	private void broadcastStepCountUpdate(int stepCount) {
+	private void broadcastStepCount(int stepCount) {
 		
-		if (stepCount == lastStepCount) {
-			return;
-		}
-		lastStepCount = stepCount;
-
 		LocalBroadcastManager lbm = LocalBroadcastManager.getInstance(this);
 		Intent intent = new Intent(getResources().getString(R.string.step_count_update_action))
 			.putExtra(getResources().getString(R.string.step_count), "" + stepCount) //TODO optimize string formating
