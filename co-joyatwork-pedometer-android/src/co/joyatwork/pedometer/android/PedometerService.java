@@ -1,9 +1,13 @@
 package co.joyatwork.pedometer.android;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import co.joyatwork.pedometer.StepCounter;
 import android.annotation.SuppressLint;
 import android.app.Service;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.SharedPreferences.Editor;
 import android.content.res.Configuration;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -12,12 +16,15 @@ import android.hardware.SensorManager;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 import android.widget.Toast;
 
 public class PedometerService extends Service {
 	
+	private static final String PERSISTENT_STATE_STEPS_FILE = "steps";
+	private static final String PERSISTENT_SATE_STEPS_COUNT = "stepsCount";
 	// the following fields are accessed from UI thread
 	private static final String TAG = "PedometerService";
 	private boolean isRunning = false;
@@ -28,20 +35,30 @@ public class PedometerService extends Service {
 	private Sensor sensor;
 	//<<
 
-	// the StepCounter object is created on UI thread but used by HelperThread 
+	// the following objects are created on UI thread but used by HelperThread 
 	private StepCounter stepCounter;
+	private SharedPreferences persistentState;
+	private Editor persistentStateEditor; //TODO called on UI Thread in onDestroy()!!! 
 	
 	// the following fields are accessed on HelperThread >>
 	private int lastStepCount = 0;
-	private int stepsCount = 0;
+	private AtomicInteger stepsCount; // to allow concurrent access from UI and Helper thread
+	
 	private boolean debugging = true; //TODO get value from preferences
 
 	private final class StepsListener implements StepCounter.StepCounterListener {
 
 		@Override
 		public void onStepsCounted(int deltaStepCount) {
-			stepsCount += deltaStepCount;
-			Log.d(TAG, "onStepCounted: " + stepsCount);
+
+			stepsCount.addAndGet(deltaStepCount);
+			
+			persistentStateEditor.putInt(PERSISTENT_SATE_STEPS_COUNT, stepsCount.get());
+			persistentStateEditor.apply();
+
+			broadcastStepCountUpdate(stepsCount.get());
+			
+			Log.d(TAG, "onStepCounted: " + stepsCount.get());
 		}
 		
 	}
@@ -55,9 +72,7 @@ public class PedometerService extends Service {
 			//TODO check if correct sensor is calling
 
 			long currentSampleTime = event.timestamp / NANO_TO_MILISECONDS;
-
 			stepCounter.countSteps(event.values.clone(), currentSampleTime);
-			broadcastStepCountUpdate(stepCounter.getStepCount());
 
 			//Log.d(TAG, "onSensorChanged called on " + Thread.currentThread().getName() + " " + currentSampleTime + " ms");
 
@@ -76,9 +91,16 @@ public class PedometerService extends Service {
 	public void onCreate() {
 		super.onCreate();
 		
-		Log.d(TAG, "onCreate - stepCount: " + stepsCount);
 		
 		stepCounter = new StepCounter(new StepsListener());
+		
+		persistentState = getSharedPreferences(PERSISTENT_STATE_STEPS_FILE, 0);
+		persistentStateEditor = persistentState.edit();
+		
+		stepsCount = new AtomicInteger();
+		stepsCount.set((persistentState.getInt(PERSISTENT_SATE_STEPS_COUNT, 0)));
+
+		Log.d(TAG, "onCreate - stepCount: " + stepsCount.get());
 		
 	}
 
@@ -124,6 +146,11 @@ public class PedometerService extends Service {
 			
 		}
 
+		if (intent != null) {
+			// Parent Activity recreated, broadcast update 
+			broadcastStepCountUpdate(stepsCount.get());
+		}
+		
 		return START_STICKY;
 	}
 
@@ -138,10 +165,15 @@ public class PedometerService extends Service {
 			isRunning = false;
 			// thread with looper is gracefully killed when service is killed
 			// no need to call interrupt explicitly (anyway not sure if Looper can be interrupted explicitly?)
-			// helperThread.interrupt();
 			sensorManager.unregisterListener(accelerometerListener);
-			//..
 		}
+
+		// hopefully onSensorChanged() will not be invoked when listener got unregistered!?
+		// SharedPreferences should be thread safe
+		// otherwise the race conditions on storing to state might occur!!!!
+		persistentStateEditor.putInt(PERSISTENT_SATE_STEPS_COUNT, 0); // reset counter on service exit
+		persistentStateEditor.commit();
+
 		super.onDestroy();
 
 	}
