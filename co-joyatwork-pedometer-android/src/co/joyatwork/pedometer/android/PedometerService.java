@@ -5,6 +5,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import co.joyatwork.pedometer.StepCounter;
 import android.annotation.SuppressLint;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
@@ -16,6 +17,8 @@ import android.hardware.SensorManager;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
+import android.os.PowerManager.WakeLock;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 import android.widget.Toast;
@@ -83,6 +86,7 @@ public class PedometerService extends Service {
 	}
 	private AccelerometerListener accelerometerListener;
 	//<<
+	private WakeLock wakeLock;
 	
 	@Override
 	public void onCreate() {
@@ -96,6 +100,9 @@ public class PedometerService extends Service {
 		
 		stepsCount = new AtomicInteger();
 		stepsCount.set((persistentState.getInt(PERSISTENT_SATE_STEPS_COUNT, 0)));
+		
+		PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+		wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PedometerService");
 
 		Log.d(TAG, "onCreate - stepCount: " + stepsCount.get());
 		
@@ -140,17 +147,20 @@ public class PedometerService extends Service {
 				
 			}, "HelperThread");
 			helperThread.start();
-			
+
 		}
 
 		// Parent Activity recreated, broadcast update 
 		broadcastStepCount(stepsCount.get());
+		
+		wakeLock.acquire();
 		
 		return START_STICKY;
 	}
 
 	@Override
 	public void onDestroy() {
+		super.onDestroy();
 
 		Log.d(TAG, "onDestroy()");
 
@@ -169,7 +179,7 @@ public class PedometerService extends Service {
 		persistentStateEditor.putInt(PERSISTENT_SATE_STEPS_COUNT, 0); // reset counter on service exit
 		persistentStateEditor.commit();
 
-		super.onDestroy();
+		wakeLock.release();
 
 	}
 
