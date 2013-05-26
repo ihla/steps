@@ -136,6 +136,10 @@ public class StepCounter {
 		return stepDetector[axis].getSmoothedAcceleration();
 	}
 	
+	public float getThresholdValue(int axis) {
+		return stepDetector[axis].getThresholdValue();
+	}
+	
 	public float getFixedPeak2PeakValue(int axis) {
 		return stepDetector[axis].getFixedPeak2PeakValue();
 	}
