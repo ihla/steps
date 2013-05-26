@@ -29,6 +29,7 @@ public class PedometerService extends Service {
 	private static final String PERSISTENT_SATE_STEPS_COUNT = "stepsCount";
 	// the following fields are accessed from UI thread
 	private static final String TAG = "PedometerService";
+	private static final long NANO_TO_MILISECONDS = 1000000;
 	private boolean isRunning = false;
 	//TODO check if you can start this thread anonymously, if so you can remove private field
 	private Thread helperThread;
@@ -65,16 +66,14 @@ public class PedometerService extends Service {
 	
 	private final class AccelerometerListener implements SensorEventListener {
 
-		private static final long NANO_TO_MILISECONDS = 1000000;
 
 		@Override
 		public void onSensorChanged(SensorEvent event) {
 			//TODO check if correct sensor is calling
 
-			long currentSampleTime = event.timestamp / NANO_TO_MILISECONDS;
-			stepCounter.countSteps(event.values.clone(), currentSampleTime);
+			//Log.d(TAG, "onSensorChanged called on " + Thread.currentThread().getName() + " " + event.timestamp / NANO_TO_MILISECONDS + " ms");
 
-			//Log.d(TAG, "onSensorChanged called on " + Thread.currentThread().getName() + " " + currentSampleTime + " ms");
+			countSteps(event);
 
 		}
 
@@ -85,7 +84,9 @@ public class PedometerService extends Service {
 		}
 	}
 	private AccelerometerListener accelerometerListener;
+	
 	//<<
+	
 	private WakeLock wakeLock;
 	
 	@Override
@@ -93,7 +94,7 @@ public class PedometerService extends Service {
 		super.onCreate();
 		
 		
-		stepCounter = new StepCounter(new StepsListener());
+		stepCounter = createStepCounter(new StepsListener());
 		
 		persistentState = getSharedPreferences(PERSISTENT_STATE_STEPS_FILE, 0);
 		persistentStateEditor = persistentState.edit();
@@ -247,4 +248,21 @@ public class PedometerService extends Service {
 			
 	}
 
+	/**
+	 * called on HelperThread!!!
+	 * @param event
+	 */
+	private void countSteps(SensorEvent event) {
+		long currentSampleTime = event.timestamp / NANO_TO_MILISECONDS;
+		stepCounter.countSteps(event.values.clone(), currentSampleTime);
+	}
+
+	/**
+	 * can subclass and override for debugging
+	 * @param listener
+	 * @return
+	 */
+	protected StepCounter createStepCounter(StepCounter.StepCounterListener listener) {
+		return new StepCounter(listener);
+	}
 }
