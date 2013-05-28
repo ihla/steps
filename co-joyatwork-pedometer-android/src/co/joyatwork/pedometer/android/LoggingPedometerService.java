@@ -8,7 +8,9 @@ import java.io.PrintWriter;
 
 import co.joyatwork.pedometer.StepCounter;
 import co.joyatwork.pedometer.StepCounter.StepCounterListener;
+import android.content.SharedPreferences;
 import android.os.SystemClock;
+import android.preference.PreferenceManager;
 import android.util.Log;
 
 public class LoggingPedometerService extends PedometerService {
@@ -25,7 +27,7 @@ public class LoggingPedometerService extends PedometerService {
 	    @Override
 		public void countSteps(float[] accelerationSamples, long sampleTimeInMilis) {
 			super.countSteps(accelerationSamples, sampleTimeInMilis);
-			writeLog(sampleTimeInMilis, accelerationSamples);
+			writeLogIfEnabled(sampleTimeInMilis, accelerationSamples);
 		}
 
 	    private static final char CSV_DELIM = ',';
@@ -36,12 +38,13 @@ public class LoggingPedometerService extends PedometerService {
 	    private static final String CSV_HEADER_PEAK_DETECTION_FILE =
 	            "Time,X-val,X-currPeak,X-fixedPeak,Y-val,Y-currPeak,Y-fixedPeak,Z-val,Z-currPeak,Z-fixedPeak";
 
-		private PrintWriter filterOutputLogWriter;
-		private PrintWriter stepsDataWriter;
-		private PrintWriter peakDetectionLogWriter;
+		private PrintWriter filterOutputLogWriter = null;
+		private PrintWriter stepsDataWriter = null;
+		private PrintWriter peakDetectionLogWriter = null;
 		private long startTime;
 		private int[] oldCrossingThresholdCounts = new int[3];
 		private float[] stepFlip = new float[3];
+		private StringBuffer stringBuffer;
 
 		private void initializeLogging() {
 			// Data files are stored on the external cache directory so they can
@@ -69,21 +72,27 @@ public class LoggingPedometerService extends PedometerService {
 			startTime = SystemClock.uptimeMillis();
 			
 			for (int i = 0; i < 3; i++) {
+				oldCrossingThresholdCounts[i] = 0;
 				stepFlip[i] = -0.5F;
 			}
+			
+			stringBuffer = new StringBuffer();
 		}
 
-		private void writeLog(long sampleTimeInMillis, float[] values) {
-			writeFilterOutputData(sampleTimeInMillis, values);
-			writePeakDetectionData(sampleTimeInMillis);
-			writeStepDetectionData(sampleTimeInMillis);
+		private void writeLogIfEnabled(long sampleTimeInMillis, float[] values) {
+			if (settings.getBoolean("logging", false)) {
+				Log.d("LoggingPedometerService", "logging");
+				writeFilterOutputData(sampleTimeInMillis, values);
+				writePeakDetectionData(sampleTimeInMillis);
+				writeStepDetectionData(sampleTimeInMillis);
+			}
 		}
 		
 		private void writeFilterOutputData(long sampleTimeInMillis, float[] values) {
-			long timeStampInMilis = sampleTimeInMillis - startTime;
 
 			if (filterOutputLogWriter != null) {
-				StringBuffer sb = new StringBuffer()
+				long timeStampInMilis = sampleTimeInMillis - startTime;
+				stringBuffer.delete(0, stringBuffer.length())
 					.append(timeStampInMilis).append(CSV_DELIM)
 					.append(values[0]).append(CSV_DELIM) // x
 					.append(getSmoothedAcceleration(0)).append(CSV_DELIM)
@@ -93,7 +102,7 @@ public class LoggingPedometerService extends PedometerService {
 					.append(getSmoothedAcceleration(2))
 					;
 
-				filterOutputLogWriter.println(sb.toString());
+				filterOutputLogWriter.println(stringBuffer.toString());
 				if (filterOutputLogWriter.checkError()) {
 					Log.w(TAG, "Error writing filter output log");
 				}
@@ -102,10 +111,10 @@ public class LoggingPedometerService extends PedometerService {
 		}
 		
 		private void writePeakDetectionData(long sampleTimeInMillis) {
-			long timeStampInMilis = sampleTimeInMillis - startTime;
 
 			if (peakDetectionLogWriter != null) {
-				StringBuffer sb = new StringBuffer()
+				long timeStampInMilis = sampleTimeInMillis - startTime;
+				stringBuffer.delete(0, stringBuffer.length())
 					.append(timeStampInMilis).append(CSV_DELIM)
 					.append(getSmoothedAcceleration(0)).append(CSV_DELIM)
 					.append(getCurrentPeak2PeakValue(0)).append(CSV_DELIM)
@@ -118,7 +127,7 @@ public class LoggingPedometerService extends PedometerService {
 					.append(getFixedPeak2PeakValue(2))
 					;
 
-				peakDetectionLogWriter.println(sb.toString());
+				peakDetectionLogWriter.println(stringBuffer.toString());
 				if (stepsDataWriter.checkError()) {
 					Log.w(TAG, "Error writing peak detection log");
 				}
@@ -128,10 +137,10 @@ public class LoggingPedometerService extends PedometerService {
 		
 		private void writeStepDetectionData(long sampleTimeInMillis) {
 			flipSteps();
-			long timeStampInMilis = sampleTimeInMillis - startTime;
 			
 			if (stepsDataWriter != null) {
-				StringBuffer sb = new StringBuffer()
+				long timeStampInMilis = sampleTimeInMillis - startTime;
+				stringBuffer.delete(0, stringBuffer.length())
 					.append(timeStampInMilis).append(CSV_DELIM)
 					.append(getSmoothedAcceleration(0)).append(CSV_DELIM)
 					.append(getThresholdValue(0)).append(CSV_DELIM)
@@ -165,7 +174,7 @@ public class LoggingPedometerService extends PedometerService {
 					*/
 					;
 
-				stepsDataWriter.println(sb.toString());
+				stepsDataWriter.println(stringBuffer.toString());
 				if (stepsDataWriter.checkError()) {
 					Log.w(TAG, "Error writing step detection log");
 				}
@@ -191,6 +200,15 @@ public class LoggingPedometerService extends PedometerService {
 				oldCrossingThresholdCounts[i] = crossingThresholdCounts[i];
 			}
 		}
+	}
+
+	private SharedPreferences settings;
+
+	@Override
+	public void onCreate() {
+		super.onCreate();
+		
+		settings = PreferenceManager.getDefaultSharedPreferences(this);
 	}
 
 	@Override
