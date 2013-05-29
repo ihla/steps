@@ -112,14 +112,6 @@ public class PedometerService extends Service {
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
 
-		Log.d(TAG, "onStartCommand(" 
-				+ (intent != null ? intent.toString() : "null") 
-				+ ", " 
-				+ flags 
-				+ ", " 
-				+ startId 
-				+ ")");
-		
 		if (!isRunning) {
 			
 			isRunning = true;
@@ -163,8 +155,6 @@ public class PedometerService extends Service {
 	public void onDestroy() {
 		super.onDestroy();
 
-		Log.d(TAG, "onDestroy()");
-
 		Toast.makeText(this, "service stoping", Toast.LENGTH_LONG).show();
 
 		if (isRunning) {
@@ -183,51 +173,6 @@ public class PedometerService extends Service {
 		wakeLock.release();
 
 	}
-
-	@Override
-	public void onRebind(Intent intent) {
-		Log.d(TAG, "onRebind()");
-		super.onRebind(intent);
-	}
-
-	@Override
-	public boolean onUnbind(Intent intent) {
-		Log.d(TAG, "onUnbind()");
-		return super.onUnbind(intent);
-	}
-
-	@Override
-	public IBinder onBind(Intent arg0) {
-		Log.d(TAG, "onBind()");
-		return null;
-	}
-
-	@Override
-	public void onConfigurationChanged(Configuration newConfig) {
-		Log.d(TAG, "onConfigurationChanged()");
-		super.onConfigurationChanged(newConfig);
-	}
-
-	@Override
-	public void onLowMemory() {
-		Log.d(TAG, "onLowMemory()");
-		super.onLowMemory();
-	}
-
-	@SuppressLint("NewApi")
-	@Override
-	public void onTaskRemoved(Intent rootIntent) {
-		Log.d(TAG, "onTaskRemoved()");
-		super.onTaskRemoved(rootIntent);
-	}
-
-	@SuppressLint("NewApi")
-	@Override
-	public void onTrimMemory(int level) {
-		Log.d(TAG, "onTrimMemory() level: " + level);
-		super.onTrimMemory(level);
-	}
-
 
 	/**
 	 * called on HelperThread!!!
@@ -265,4 +210,11 @@ public class PedometerService extends Service {
 	protected StepCounter createStepCounter(StepCounter.StepCounterListener listener) {
 		return new StepCounter(listener);
 	}
+
+	@Override
+	public IBinder onBind(Intent intent) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
 }

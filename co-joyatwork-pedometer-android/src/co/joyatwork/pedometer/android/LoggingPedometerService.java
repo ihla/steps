@@ -8,14 +8,22 @@ import java.io.PrintWriter;
 
 import co.joyatwork.pedometer.StepCounter;
 import co.joyatwork.pedometer.StepCounter.StepCounterListener;
+import android.annotation.SuppressLint;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
+import android.os.IBinder;
 import android.os.SystemClock;
 import android.preference.PreferenceManager;
+import android.text.format.DateFormat;
 import android.util.Log;
 
 public class LoggingPedometerService extends PedometerService {
 
 	private final static String TAG = "LoggingPedometerService";
+    private static final char CSV_DELIM = ',';
+    private static final String CSV_HEADER_SERVICE_FILE = "Time,Event";
+    private StringBuffer serviceLogString;
 	
 	private final class LoggingStepCounter extends StepCounter {
 
@@ -30,7 +38,6 @@ public class LoggingPedometerService extends PedometerService {
 			writeLogIfEnabled(sampleTimeInMilis, accelerationSamples);
 		}
 
-	    private static final char CSV_DELIM = ',';
 	    private static final String CSV_HEADER_FILTER_OUTPUT_FILE =
 	            "Time,X-sensor,X-filter,Y-sensor,Y-filter,Z-sensor,Z-filter";
 	    private static final String CSV_HEADER_STEPS_FILE =
@@ -128,7 +135,7 @@ public class LoggingPedometerService extends PedometerService {
 					;
 
 				peakDetectionLogWriter.println(stringBuffer.toString());
-				if (stepsDataWriter.checkError()) {
+				if (peakDetectionLogWriter.checkError()) {
 					Log.w(TAG, "Error writing peak detection log");
 				}
 			}
@@ -203,12 +210,35 @@ public class LoggingPedometerService extends PedometerService {
 	}
 
 	private SharedPreferences settings;
+	private PrintWriter serviceLogWriter;
 
 	@Override
 	public void onCreate() {
 		super.onCreate();
 		
 		settings = PreferenceManager.getDefaultSharedPreferences(this);
+		
+		File serviceLogFile = new File(getExternalCacheDir(), "service.csv");
+		try {
+			//FileWriter calls directly OS for every write request
+			//For better performance the FileWriter is wrapped into BufferedWriter, which calls out for a batch of bytes
+			//PrintWriter allows a human-readable writing into a file
+			if (serviceLogFile.exists()) {
+				serviceLogWriter = new PrintWriter(new BufferedWriter(new FileWriter(serviceLogFile, true)));
+			}
+			else {
+				serviceLogWriter = new PrintWriter(new BufferedWriter(new FileWriter(serviceLogFile)));
+				serviceLogWriter.println(CSV_HEADER_SERVICE_FILE);
+			}
+		} catch (IOException e) {
+			Log.e(TAG, "Could not open service log file", e);
+		}
+		
+		serviceLogString = new StringBuffer();
+		
+		Log.d(TAG, "onCreate()");
+		logServiceEvent("onCreate");
+
 	}
 
 	@Override
@@ -216,4 +246,88 @@ public class LoggingPedometerService extends PedometerService {
 		return new LoggingStepCounter(listener);
 	}
 
+	@Override
+	public int onStartCommand(Intent intent, int flags, int startId) {
+		Log.d(TAG, "onStartCommand(" 
+				+ (intent != null ? intent.toString() : "null") 
+				+ ", " 
+				+ flags 
+				+ ", " 
+				+ startId 
+				+ ")");
+		logServiceEvent("onStartCommand");
+		return super.onStartCommand(intent, flags, startId);
+	}
+
+	@Override
+	public void onDestroy() {
+		super.onDestroy();
+		Log.d(TAG, "onDestroy()");
+		logServiceEvent("onDestroy");
+	}
+
+	@Override
+	public void onRebind(Intent intent) {
+		super.onRebind(intent);
+		Log.d(TAG, "onRebind()");
+		logServiceEvent("onRebind");
+	}
+
+	@Override
+	public boolean onUnbind(Intent intent) {
+		Log.d(TAG, "onUnbind()");
+		logServiceEvent("onUnbind");
+		return super.onUnbind(intent);
+	}
+
+	@Override
+	public IBinder onBind(Intent arg0) {
+		Log.d(TAG, "onBind()");
+		logServiceEvent("onBind");
+		return null;
+	}
+
+	@Override
+	public void onConfigurationChanged(Configuration newConfig) {
+		super.onConfigurationChanged(newConfig);
+		Log.d(TAG, "onConfigurationChanged()");
+		logServiceEvent("onConfigurationChanged");
+	}
+
+	@Override
+	public void onLowMemory() {
+		super.onLowMemory();
+		Log.d(TAG, "onLowMemory()");
+		logServiceEvent("onLowMemory");
+	}
+
+	@SuppressLint("NewApi")
+	@Override
+	public void onTaskRemoved(Intent rootIntent) {
+		super.onTaskRemoved(rootIntent);
+		Log.d(TAG, "onTaskRemoved()");
+		logServiceEvent("onTaskRemoved");
+	}
+
+	@SuppressLint("NewApi")
+	@Override
+	public void onTrimMemory(int level) {
+		super.onTrimMemory(level);
+		Log.d(TAG, "onTrimMemory() level: " + level);
+		logServiceEvent("onTrimMemory");
+	}
+
+	private void logServiceEvent(String event) {
+		if (serviceLogWriter != null) {
+			String timeStamp = DateFormat.format("hh:mm:ssaa dd/MM/yyyy", System.currentTimeMillis()).toString();
+			serviceLogString.delete(0, serviceLogString.length())
+				.append(timeStamp).append(CSV_DELIM)
+				.append(event)
+				;
+			serviceLogWriter.println(serviceLogString.toString());
+			if (serviceLogWriter.checkError()) {
+				Log.w(TAG, "Error writing service log");
+			}
+		}
+	}
 }
