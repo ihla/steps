@@ -3,13 +3,11 @@ package co.joyatwork.pedometer.android;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import co.joyatwork.pedometer.StepCounter;
-import android.annotation.SuppressLint;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
-import android.content.res.Configuration;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -23,7 +21,7 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 import android.widget.Toast;
 
-public class PedometerService extends Service {
+public abstract class PedometerService extends Service {
 	
 	private static final String PERSISTENT_STATE_STEPS_FILE = "steps";
 	private static final String PERSISTENT_SATE_STEPS_COUNT = "stepsCount";
@@ -91,8 +89,6 @@ public class PedometerService extends Service {
 	
 	@Override
 	public void onCreate() {
-		super.onCreate();
-		
 		
 		stepCounter = createStepCounter(new StepsListener());
 		
@@ -104,6 +100,8 @@ public class PedometerService extends Service {
 		
 		PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
 		wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PedometerService");
+		
+		startForeground();
 
 		Log.d(TAG, "onCreate - stepCount: " + stepsCount.get());
 		
@@ -153,7 +151,6 @@ public class PedometerService extends Service {
 
 	@Override
 	public void onDestroy() {
-		super.onDestroy();
 
 		Toast.makeText(this, "service stoping", Toast.LENGTH_LONG).show();
 
@@ -217,4 +214,9 @@ public class PedometerService extends Service {
 		return null;
 	}
 
+	/**
+	 * abstract method called to run service in foreground 
+	 * to be implemented in application package 
+	 */
+	abstract protected void startForeground();
 }
