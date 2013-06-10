@@ -24,6 +24,8 @@ public abstract class LoggingPedometerService extends PedometerService {
     private static final char CSV_DELIM = ',';
     private static final String CSV_HEADER_SERVICE_FILE = "Time,Event";
     private StringBuffer serviceLogString;
+	private long countStepsCallCounter = 0;
+	private	long lastCountStepsCallTimeInMilis = 0;
 	
 	private final class LoggingStepCounter extends StepCounter {
 
@@ -36,6 +38,8 @@ public abstract class LoggingPedometerService extends PedometerService {
 		public void countSteps(float[] accelerationSamples, long sampleTimeInMilis) {
 			super.countSteps(accelerationSamples, sampleTimeInMilis);
 			writeLogIfEnabled(sampleTimeInMilis, accelerationSamples);
+			countStepsCallCounter++;
+			lastCountStepsCallTimeInMilis = SystemClock.elapsedRealtime();
 		}
 
 	    private static final String CSV_HEADER_FILTER_OUTPUT_FILE =
@@ -211,6 +215,7 @@ public abstract class LoggingPedometerService extends PedometerService {
 
 	private SharedPreferences settings;
 	private PrintWriter serviceLogWriter;
+	private long onCreateTimeInMilis;
 
 	@Override
 	public void onCreate() {
@@ -236,6 +241,8 @@ public abstract class LoggingPedometerService extends PedometerService {
 		
 		serviceLogString = new StringBuffer();
 		
+		onCreateTimeInMilis = SystemClock.elapsedRealtime();
+		
 		Log.d(TAG, "onCreate()");
 		logServiceEvent("onCreate");
 
@@ -255,15 +262,42 @@ public abstract class LoggingPedometerService extends PedometerService {
 				+ ", " 
 				+ startId 
 				+ ")");
-		logServiceEvent("onStartCommand");
+		StringBuffer eventRecord = new StringBuffer()
+			.append("onStartCommand::")
+			.append("last countSteps called before:")
+			.append((lastCountStepsCallTimeInMilis != 0) ? (SystemClock.elapsedRealtime() - lastCountStepsCallTimeInMilis) : "?")
+			.append("ms::")
+			;
+		Log.d(TAG, eventRecord.toString());
+		logServiceEvent(eventRecord.toString());
 		return super.onStartCommand(intent, flags, startId);
 	}
 
 	@Override
 	public void onDestroy() {
 		super.onDestroy();
-		Log.d(TAG, "onDestroy()");
-		logServiceEvent("onDestroy");
+		long elapsedRealtimeInMilis = SystemClock.elapsedRealtime();
+		long elapsedTimeInMilis = elapsedRealtimeInMilis - onCreateTimeInMilis;
+		long elapsedTimeInSec = elapsedTimeInMilis / 1000;
+		float countStepsCallRate = ((float)countStepsCallCounter / elapsedTimeInMilis) * 1000;
+		StringBuffer eventRecord = new StringBuffer()
+			.append("onDestroy::")
+			.append("elapsed time:")
+			.append(elapsedTimeInSec)
+			.append("s::")
+			.append("countSteps called:")
+			.append(countStepsCallCounter)
+			.append("x::")
+			.append("at rate:")
+			.append((float)Math.round(countStepsCallRate * 100) / 100)
+			.append("s^1::")
+			.append("last countSteps called before:")
+			.append((lastCountStepsCallTimeInMilis != 0) ? (elapsedRealtimeInMilis - lastCountStepsCallTimeInMilis) : "?")
+			.append("ms::")
+			;
+		logServiceEvent(eventRecord.toString());
+		Log.d(TAG, eventRecord.toString());
+		
 	}
 
 	@Override
