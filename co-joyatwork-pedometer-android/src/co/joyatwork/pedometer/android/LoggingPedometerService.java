@@ -40,6 +40,7 @@ public abstract class LoggingPedometerService extends PedometerService {
 			writeLogIfEnabled(sampleTimeInMilis, accelerationSamples);
 			countStepsCallCounter++;
 			lastCountStepsCallTimeInMilis = SystemClock.elapsedRealtime();
+			//Log.d(TAG, "countSteps " + sampleTimeInMilis);
 		}
 
 	    private static final String CSV_HEADER_FILTER_OUTPUT_FILE =
@@ -290,7 +291,7 @@ public abstract class LoggingPedometerService extends PedometerService {
 			.append("x::")
 			.append("at rate:")
 			.append((float)Math.round(countStepsCallRate * 100) / 100)
-			.append("s^1::")
+			.append("Hz::")
 			.append("last countSteps called before:")
 			.append((lastCountStepsCallTimeInMilis != 0) ? (elapsedRealtimeInMilis - lastCountStepsCallTimeInMilis) : "?")
 			.append("ms::")

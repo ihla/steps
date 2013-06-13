@@ -4,8 +4,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import co.joyatwork.pedometer.StepCounter;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.hardware.Sensor;
@@ -82,9 +84,37 @@ public abstract class PedometerService extends Service {
 		}
 	}
 	private AccelerometerListener accelerometerListener;
+	protected Handler handler;
 	
 	//<<
 	
+    // BroadcastReceiver for handling ACTION_SCREEN_OFF.
+    private BroadcastReceiver screenOffReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            // Check action just to be on the safe side.
+            if (!intent.getAction().equals(Intent.ACTION_SCREEN_OFF)) {
+            	return;
+            }
+
+            Runnable runnable = new Runnable() {
+                public void run() {
+                    Log.i(TAG, "Runnable executing.");
+                    // Unregisters the listener and registers it again.
+                	if (isRunning) {
+        				unregisterSensorListener();
+        				registerSensorListener();
+        			}
+                    // release and acquire wake lock
+                	wakeLock.release();
+                	wakeLock.acquire();
+                }
+            };
+
+            new Handler().postDelayed(runnable, 2500);
+        }
+    };
+
 	private WakeLock wakeLock;
 	
 	@Override
@@ -100,6 +130,9 @@ public abstract class PedometerService extends Service {
 		
 		PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
 		wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PedometerService");
+		
+		// this workaround does not work on Samsung Ace 2 Android 2.3.6!!!
+		//registerReceiver(screenOffReceiver, new IntentFilter(Intent.ACTION_SCREEN_OFF));
 		
 		startForeground();
 
@@ -124,13 +157,12 @@ public abstract class PedometerService extends Service {
 					
 					Looper.prepare();
 
-					Handler handler = new Handler();
+					handler = new Handler();
 					sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
 					sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
 					
 					accelerometerListener = new AccelerometerListener();
-					sensorManager.registerListener(accelerometerListener, sensor, 
-							SensorManager.SENSOR_DELAY_GAME, handler);
+					registerSensorListener();
 					
 					Looper.loop();
 					
@@ -154,11 +186,13 @@ public abstract class PedometerService extends Service {
 
 		Toast.makeText(this, "service stoping", Toast.LENGTH_LONG).show();
 
+		//unregisterReceiver(screenOffReceiver);
+		
 		if (isRunning) {
 			isRunning = false;
 			// thread with looper is gracefully killed when service is killed
 			// no need to call interrupt explicitly (anyway not sure if Looper can be interrupted explicitly?)
-			sensorManager.unregisterListener(accelerometerListener);
+			unregisterSensorListener();
 		}
 
 		// hopefully onSensorChanged() will not be invoked when listener got unregistered!?
@@ -219,4 +253,14 @@ public abstract class PedometerService extends Service {
 	 * to be implemented in application package 
 	 */
 	abstract protected void startForeground();
+
+	private void registerSensorListener() {
+		sensorManager.registerListener(accelerometerListener, sensor, 
+				SensorManager.SENSOR_DELAY_GAME, handler);
+	}
+
+	private void unregisterSensorListener() {
+		sensorManager.unregisterListener(accelerometerListener);
+	}
+
 }
